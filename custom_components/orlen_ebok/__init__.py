@@ -57,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     async def handle_submit_reading(call: ServiceCall) -> None:
-        """Служба подачи показаний счетчика газа (вызывается из автоматизаций)."""
+        """Служба подачи показаний счетчика газа (автоматически из source_sensor)."""
         data = coordinator.data
         if not data:
             raise HomeAssistantError("No gas meters found in Orlen eBOK account")
@@ -84,19 +84,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         last_reading = device_data.get("last_reading", {})
         status = device_data.get("status")
 
-        # Если значение не передано, пробуем получить из привязанного source_sensor
+        # Автоматическое считывание показания из привязанного source_sensor
         if raw_val is None:
             source_sensor = entry.options.get(CONF_SOURCE_SENSOR) or entry.data.get(
                 CONF_SOURCE_SENSOR
             )
             if not source_sensor:
                 raise HomeAssistantError(
-                    "Parameter 'value' is required or 'source_sensor' must be configured in settings"
+                    "Локальный сенсор газа не настроен в параметрах интеграции ORLEN eBOK. "
+                    "Укажите сенсор в настройках интеграции (Настройки -> Интеграции -> ORLEN eBOK -> Настроить)."
                 )
             state = hass.states.get(source_sensor)
             if not state or state.state in ("unknown", "unavailable"):
                 raise HomeAssistantError(
-                    f"Source sensor '{source_sensor}' state is unavailable ({state.state if state else 'None'})"
+                    f"Локальный сенсор газа '{source_sensor}' недоступен (состояние: {state.state if state else 'None'})"
                 )
             raw_val = state.state
 
@@ -109,7 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 raise ValueError("Reading value cannot be negative")
         except (ValueError, TypeError) as err:
             raise HomeAssistantError(
-                f"Invalid meter reading value: '{raw_val}'. Must be a valid positive number."
+                f"Некорректное значение показания счетчика: '{raw_val}'. Должно быть положительным числом."
             ) from err
 
         # Проверка монотонного возрастания показания
@@ -118,7 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             try:
                 if val_int < int(float(last_val)):
                     raise HomeAssistantError(
-                        f"New reading ({val_int} m³) cannot be lower than previous registered reading ({last_val} m³)"
+                        f"Новое показание ({val_int} м³) не может быть меньше предыдущего зафиксированного ({last_val} м³)"
                     )
             except (ValueError, TypeError):
                 pass
@@ -126,7 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Проверка открытого окна подачи
         if status != STATUS_ALLOWED and not consent:
             raise HomeAssistantError(
-                f"Reading submission is not allowed at this moment (Current status: {status})"
+                f"Подача показаний сейчас недоступна в биллинге Orlen (Текущий статус: {status})"
             )
 
         _LOGGER.info("Submitting gas meter reading %s m³ for PPG %s", val_int, ppg_id)
@@ -135,7 +136,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 ppg_id, val_int, date_str=date_str, consent_reset=consent
             )
         except OrlenEbokApiError as err:
-            raise HomeAssistantError(f"Submission failed: {err}") from err
+            raise HomeAssistantError(f"Сбой отправки показания: {err}") from err
 
         # Оптимистичное обновление данных в памяти
         coordinator.async_record_submission(ppg_id, val_int, date_str or "", result)
