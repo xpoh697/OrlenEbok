@@ -93,37 +93,36 @@ class OrlenEbokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Создание потока дополнительных параметров (OptionsFlow)."""
-        return OrlenEbokOptionsFlow(config_entry)
+        return OrlenEbokOptionsFlow()
 
 
 class OrlenEbokOptionsFlow(config_entries.OptionsFlow):
     """Поток опций интеграции ORLEN eBOK."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Инициализация потока опций."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Управление опциями (выбор локального датчика газа)."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            cleaned_sensor = (user_input.get(CONF_SOURCE_SENSOR) or "").strip()
+            return self.async_create_entry(
+                title="", data={CONF_SOURCE_SENSOR: cleaned_sensor}
+            )
 
-        current_sensor = self.config_entry.options.get(
-            CONF_SOURCE_SENSOR,
-            self.config_entry.data.get(CONF_SOURCE_SENSOR, ""),
-        )
+        current_sensor = (
+            self.config_entry.options.get(CONF_SOURCE_SENSOR)
+            or self.config_entry.data.get(CONF_SOURCE_SENSOR)
+            or ""
+        ).strip()
 
-        options_schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_SOURCE_SENSOR,
-                    default=current_sensor,
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor")
-                ),
-            }
-        )
+        schema_dict: dict[Any, Any] = {}
+        if current_sensor:
+            schema_dict[
+                vol.Optional(CONF_SOURCE_SENSOR, default=current_sensor)
+            ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+        else:
+            schema_dict[
+                vol.Optional(CONF_SOURCE_SENSOR)
+            ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
 
-        return self.async_show_form(step_id="init", data_schema=options_schema)
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema_dict))
