@@ -9,7 +9,7 @@
    - **Дата последнего показания** (`sensor.<ppg>_last_reading_date`): дата и время последней фиксации показания.
    - **Статус передачи показания** (`sensor.<ppg>_reading_submission_status`): текущее состояние возможности отправки (`allowed` — окно открыто, `already_submitted` — показание за период уже подано, `disallowed` — окно закрыто, `submitted` — успешно отправлено).
    - **Расход с прошлого показания** (`sensor.<ppg>_consumption_since_last_reading`): расход газа с момента последней зафиксированной в биллинге подачи ($m^3$), вычисляемый в реальном времени на основе привязанного локального датчика.
-4. Предоставить сервис `orlen_ebok.cancel_reading` для оперативной отмены ошибочно переданных показаний.
+4. Предоставить UI-кнопку `button.<ppg>_cancel_reading` и сервис `orlen_ebok.cancel_reading` для оперативной отмены ошибочно переданных показаний.
 5. Обеспечить корректное брендирование и интеграцию в каталог HACS с официальной иконкой и логотипом приложения (по стандарту EMS).
 
 ## 2. Результаты реверс-инжиниринга и спецификация прямого API Login
@@ -87,13 +87,14 @@ custom_components/orlen_ebok/
 ├── brand/
 │   ├── icon.png           # Фирменная иконка бренда
 │   └── logo.png           # Фирменный логотип бренда
-├── __init__.py            # Инициализация платформы, регистрация служб, слушатель опций
+├── __init__.py            # Инициализация платформ sensor и button, регистрация служб
 ├── manifest.json          # Метаданные компонента HACS
 ├── const.py               # Константы, эндпоинты, ключи конфигурации
 ├── config_flow.py         # UI мастер настройки (логин, пароль, выбор source_sensor)
 ├── coordinator.py         # DataUpdateCoordinator (опрос API, кэширование)
 ├── api.py                 # Асинхронный клиент прямого API PGNiG eBOK на aiohttp
 ├── sensor.py              # Реализация 4 сенсоров (показание, дата, статус, расход)
+├── button.py              # Реализация кнопки отмены последнего показания
 ├── services.yaml          # Описание параметров служб submit_reading и cancel_reading
 ├── strings.json           # Описания и локализация
 └── translations/
@@ -102,11 +103,14 @@ custom_components/orlen_ebok/
     └── ru.json
 ```
 
-### 3.2. Требуемые сенсоры
-1. `sensor.<ppg>_last_reading`: последнее зафиксированное показание (unit: `m³`, device_class: `gas`, state_class: `total_increasing`).
-2. `sensor.<ppg>_last_reading_date`: дата и время последнего зафиксированного показания (device_class: `timestamp`).
-3. `sensor.<ppg>_reading_submission_status`: статус передачи показаний (`allowed`, `already_submitted`, `disallowed`, `submitted`). В атрибутах: `meter_number`, `tariff`, `reading_dates`, `last_submission_result`.
-4. `sensor.<ppg>_consumption_since_last_reading`: расход газа с момента последней подачи ($m^3$, device_class: `gas`, state_class: `measurement`). Отслеживает изменения привязанного локального сенсора в реальном времени.
+### 3.2. Сущности интеграции
+1. **Сенсоры**:
+   - `sensor.<ppg>_last_reading`: последнее зафиксированное показание (unit: `m³`, device_class: `gas`, state_class: `total_increasing`).
+   - `sensor.<ppg>_last_reading_date`: дата и время последнего зафиксированного показания (device_class: `timestamp`).
+   - `sensor.<ppg>_reading_submission_status`: статус передачи показаний (`allowed`, `already_submitted`, `disallowed`, `submitted`). В атрибутах: `meter_number`, `tariff`, `reading_dates`, `last_submission_result`.
+   - `sensor.<ppg>_consumption_since_last_reading`: расход газа с момента последней подачи ($m^3$, device_class: `gas`, state_class: `measurement`). Отслеживает изменения привязанного локального сенсора в реальном времени.
+2. **Кнопки**:
+   - `button.<ppg>_cancel_reading`: физическая кнопка на карточке устройства в UI Home Assistant для безопасной отмены поданных показаний с защитой от случайного нажатия и спама (debounce lock).
 
 ### 3.3. Службы (Services) для автоматизаций
 - `orlen_ebok.submit_reading`:
@@ -131,7 +135,11 @@ custom_components/orlen_ebok/
    - Проверка на валидность числового значения `source_sensor`.
    - Защита от отрицательных значений (`max(0.0, current - last)`), предотвращающая сбои в Energy Dashboard.
    - Корректная регистрация и отписка от событий через `async_on_remove`.
-3. **Асинхронность и неблокирующий I/O**:
+3. **Безопасность кнопки отмены**:
+   - Блокировка отмены, если показание не подавалось (`status not in ['submitted', 'already_submitted']`).
+   - Защита от повторного входа через `asyncio.Lock()` (debounce).
+   - Мгновенная инвалидация оптимистичного кэша координатора.
+4. **Асинхронность и неблокирующий I/O**:
    - Использование `aiohttp.ClientSession` через `async_get_clientsession(hass)`.
-4. **Безопасность учетных данных**:
+5. **Безопасность учетных данных**:
    - Хранение логина и пароля в зашифрованном хранилище `config_entries`.
