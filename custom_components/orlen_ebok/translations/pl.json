@@ -6,7 +6,8 @@
         "description": "Wprowadź login (email) i hasło do portalu ORLEN mBOK / PGNiG eBOK.",
         "data": {
           "username": "Login / Adres e-mail",
-          "password": "Hasło"
+          "password": "Hasło",
+          "source_sensor": "Sensor licznika gazu (opcjonalnie)"
         }
       }
     },
@@ -40,6 +41,14 @@
       },
       "reading_submission_status": {
         "name": "Status podawania odczytu"
+      },
+      "consumption_since_last_reading": {
+        "name": "Zużycie od ostatniego odczytu"
+      }
+    },
+    "button": {
+      "cancel_reading": {
+        "name": "Anuluj ostatni odczyt"
       }
     }
   }

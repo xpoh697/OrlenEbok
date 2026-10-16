@@ -6,7 +6,8 @@
         "description": "Enter your login (email) and password for ORLEN mBOK / PGNiG eBOK portal.",
         "data": {
           "username": "Login / Email",
-          "password": "Password"
+          "password": "Password",
+          "source_sensor": "Gas meter sensor (optional)"
         }
       }
     },
@@ -40,6 +41,14 @@
       },
       "reading_submission_status": {
         "name": "Reading submission status"
+      },
+      "consumption_since_last_reading": {
+        "name": "Consumption since last reading"
+      }
+    },
+    "button": {
+      "cancel_reading": {
+        "name": "Cancel last reading"
       }
     }
   }

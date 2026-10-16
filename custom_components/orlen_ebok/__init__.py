@@ -31,7 +31,7 @@ from .coordinator import OrlenEbokCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -52,6 +52,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Слушатель изменений параметров в OptionsFlow для автоматической перезагрузки
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     async def handle_submit_reading(call: ServiceCall) -> None:
         """Служба подачи показаний счетчика газа (вызывается из автоматизаций)."""
@@ -83,10 +86,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Если значение не передано, пробуем получить из привязанного source_sensor
         if raw_val is None:
-            source_sensor = entry.options.get(CONF_SOURCE_SENSOR)
+            source_sensor = entry.options.get(CONF_SOURCE_SENSOR) or entry.data.get(
+                CONF_SOURCE_SENSOR
+            )
             if not source_sensor:
                 raise HomeAssistantError(
-                    "Parameter 'value' is required or 'source_sensor' must be configured in Options"
+                    "Parameter 'value' is required or 'source_sensor' must be configured in settings"
                 )
             state = hass.states.get(source_sensor)
             if not state or state.state in ("unknown", "unavailable"):
@@ -173,6 +178,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except OrlenEbokApiError as err:
             raise HomeAssistantError(f"Cancel reading failed: {err}") from err
 
+        # Сброс локального оптимистичного состояния при отмене
+        coordinator.optimistic_submissions.pop(ppg_id, None)
+
         hass.bus.async_fire(
             EVENT_READING_CANCELLED,
             {
@@ -187,6 +195,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_CANCEL_READING, handle_cancel_reading)
 
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Перезагрузка интеграции при изменении настроек."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

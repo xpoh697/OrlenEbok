@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import OrlenEbokApiClient, OrlenEbokApiError, OrlenEbokAuthError
@@ -25,6 +26,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
+        vol.Optional(CONF_SOURCE_SENSOR): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="sensor")
+        ),
     }
 )
 
@@ -37,12 +41,13 @@ class OrlenEbokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Шаг ввода логина и пароля."""
+        """Шаг ввода логина, пароля и привязки датчика газа."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD].strip()
+            source_sensor = (user_input.get(CONF_SOURCE_SENSOR) or "").strip()
 
             await self.async_set_unique_id(username.lower())
             self._abort_if_unique_id_configured()
@@ -69,6 +74,10 @@ class OrlenEbokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
+                        CONF_SOURCE_SENSOR: source_sensor,
+                    },
+                    options={
+                        CONF_SOURCE_SENSOR: source_sensor,
                     },
                 )
 
@@ -101,11 +110,19 @@ class OrlenEbokOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current_sensor = self.config_entry.options.get(CONF_SOURCE_SENSOR, "")
+        current_sensor = self.config_entry.options.get(
+            CONF_SOURCE_SENSOR,
+            self.config_entry.data.get(CONF_SOURCE_SENSOR, ""),
+        )
 
         options_schema = vol.Schema(
             {
-                vol.Optional(CONF_SOURCE_SENSOR, default=current_sensor): str,
+                vol.Optional(
+                    CONF_SOURCE_SENSOR,
+                    default=current_sensor,
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
             }
         )
 

@@ -6,7 +6,8 @@
         "description": "Введите логин (email) и пароль от личного кабинета ORLEN mBOK / PGNiG eBOK.",
         "data": {
           "username": "Логин / Email",
-          "password": "Пароль"
+          "password": "Пароль",
+          "source_sensor": "Сенсор показаний газа (опционально)"
         }
       }
     },
@@ -40,6 +41,14 @@
       },
       "reading_submission_status": {
         "name": "Статус передачи показаний"
+      },
+      "consumption_since_last_reading": {
+        "name": "Расход с прошлого показания"
+      }
+    },
+    "button": {
+      "cancel_reading": {
+        "name": "Отменить последнее показание"
       }
     }
   }
