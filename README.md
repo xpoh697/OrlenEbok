@@ -1,12 +1,22 @@
-# ORLEN eBOK (dawniej PGNiG) — Home Assistant Integration
+<p align="center">
+  <img src="images/icon.png" width="128" height="128" alt="ORLEN eBOK Logo">
+</p>
 
-Интеграция Home Assistant (HACS) для личного кабинета **ORLEN mBOK / PGNiG eBOK** (`com.pgnig_bok`), созданная на основе реверс-инжиниринга официального мобильного приложения и веб-портала CRM API v3.0 (`https://ebok.myorlen.pl`).
+<h1 align="center">ORLEN eBOK (dawniej PGNiG) — Home Assistant Integration</h1>
 
-Интеграция позволяет:
-- Авторизоваться по логину и паролю личного кабинета.
-- Отслеживать последнее зафиксированное показание счетчика газа и дату фиксации.
-- Контролировать статус расчетного окна для подачи показаний.
-- **Подавать показания счетчика газа в автоматизациях Home Assistant** через службу `orlen_ebok.submit_reading` (включая автоматическое считывание из локального сенсора газа, например ESPHome / Zigbee).
+<p align="center">
+  <a href="https://github.com/hacs/default"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
+  <a href="https://github.com/xpoh697/OrlenEbok/releases"><img src="https://img.shields.io/github/v/release/xpoh697/OrlenEbok?include_prereleases" alt="Release"></a>
+  <a href="https://github.com/xpoh697/OrlenEbok/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+</p>
+
+Пользовательская интеграция Home Assistant (HACS) для личного кабинета **ORLEN mBOK / PGNiG eBOK** (`com.pgnig_bok`), созданная на основе реверс-инжиниринга официального мобильного приложения и веб-портала CRM API v3.0 (`https://ebok.myorlen.pl`).
+
+### Основные возможности:
+- Авторизация по логину и паролю личного кабинета myORLEN / PGNiG.
+- Мониторинг последнего зафиксированного показания счетчика газа и даты фиксации.
+- Контроль статуса расчетного окна для подачи показаний.
+- **Автоматическая передача показаний счетчика газа в автоматизациях Home Assistant** через службу `orlen_ebok.submit_reading` (включая автоматическое считывание из привязанного сенсора газа, например ESPHome / Zigbee).
 
 ---
 

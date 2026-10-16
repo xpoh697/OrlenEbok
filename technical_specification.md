@@ -1,13 +1,14 @@
-# Техническое задание (ТЗ): Интеграция Orlen / PGNiG mBOK для Home Assistant
+# Техническое задание (ТЗ): Интеграция Orlen / PGNiG eBOK для Home Assistant
 
 ## 1. Введение и цель проекта
 Разработка пользовательской интеграции Home Assistant (HACS) для личного кабинета клиентов ORLEN mBOK / PGNiG eBOK (`com.pgnig_bok`), позволяющей:
 1. Авторизоваться по логину и паролю пользователя через UI Home Assistant (Config Flow).
-2. Предоставить сервис `orlen_mbok.submit_reading` для передачи показаний счетчика газа, вызываемый из регулярных автоматизаций Home Assistant (например, 1-го числа каждого месяца).
+2. Предоставить сервис `orlen_ebok.submit_reading` для передачи показаний счетчика газа, вызываемый из регулярных автоматизаций Home Assistant (например, 1-го числа каждого месяца).
 3. Создать 3 ключевых сенсора для каждого счетчика:
    - **Последнее показание** (`sensor.<ppg>_last_reading`): зафиксированное значение в кубических метрах ($m^3$).
    - **Дата последнего показания** (`sensor.<ppg>_last_reading_date`): дата и время последней фиксации показания.
    - **Статус передачи показания** (`sensor.<ppg>_reading_submission_status`): текущее состояние возможности отправки (`allowed` — окно открыто, `already_submitted` — показание за период уже подано, `disallowed` — окно закрыто, `submitted` — успешно отправлено).
+4. Обеспечить корректное брендирование и интеграцию в каталог HACS с официальной иконкой и логотипом приложения (по стандарту EMS).
 
 ## 2. Результаты реверс-инжиниринга мобильного приложения и веб-портала
 Приложение `com.pgnig_bok` (Flutter + native AOT / Android XAPK) и веб-портал `https://ebok.myorlen.pl` используют единый REST API версии 3.0:
@@ -57,7 +58,10 @@
 
 ### 3.1. Структура файлов компонента
 ```
-custom_components/orlen_mbok/
+custom_components/orlen_ebok/
+├── brand/
+│   ├── icon.png           # Фирменная иконка бренда (480x480 / 512x512)
+│   └── logo.png           # Фирменный логотип бренда
 ├── __init__.py            # Инициализация платформы, регистрация служб
 ├── manifest.json          # Метаданные компонента HACS
 ├── const.py               # Константы, эндпоинты, ключи конфигурации
@@ -79,11 +83,28 @@ custom_components/orlen_mbok/
 3. `sensor.<ppg>_reading_submission_status`: статус передачи показаний (`allowed`, `already_submitted`, `disallowed`, `submitted`). В атрибутах: `meter_number`, `tariff`, `reading_dates`, `last_submission_result`.
 
 ### 3.3. Служба (Service) для автоматизаций
-- `orlen_mbok.submit_reading`:
+- `orlen_ebok.submit_reading`:
   - `value`: (обязательно или берется из `source_sensor`) целочисленное показание счетчика в $m^3$.
   - `ppg_id`: (опционально, если на аккаунте один счетчик — выбирается автоматически).
   - `date`: (опционально, формат `YYYY-MM-DD`, по умолчанию текущая дата).
   - `consent_meter_reset`: (опционально, `false` по умолчанию).
+
+### 3.4. Требования к брендингу HACS (по образцу EMS)
+1. Размещение фирменных ассетов:
+   - `custom_components/orlen_ebok/brand/icon.png`
+   - `custom_components/orlen_ebok/brand/logo.png`
+   - Дополнительное размещение в корне `icon.png` и `images/icon.png` для корректного парсинга различными версиями HACS и GitHub README.
+2. Конфигурация `hacs.json`:
+   ```json
+   {
+     "name": "ORLEN eBOK (PGNiG)",
+     "render_readme": true,
+     "hacs": "1.0.0",
+     "hide_default_branch": true,
+     "homeassistant": "2024.1.0",
+     "country": "PL"
+   }
+   ```
 
 ## 4. Требования к надежности и безопасности
 1. **Защита от отправки некорректных показаний**:
