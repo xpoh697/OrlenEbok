@@ -4,11 +4,12 @@
 Разработка пользовательской интеграции Home Assistant (HACS) для личного кабинета клиентов ORLEN mBOK / PGNiG eBOK (`com.pgnig_bok`), позволяющей:
 1. Авторизоваться по прямому логину и паролю (PIN) пользователя классического PGNiG eBOK через UI Home Assistant (Config Flow), с возможностью сразу указать локальный датчик расхода газа (`source_sensor`).
 2. Предоставить сервис `orlen_ebok.submit_reading` для передачи показаний счетчика газа, вызываемый из регулярных автоматизаций Home Assistant (например, в последний день каждого месяца в 23:00 с отправкой отчета в Telegram-бота).
-3. Создать 4 ключевых сенсора для каждого счетчика:
+3. Создать 5 ключевых сенсоров для каждого счетчика:
    - **Последнее показание** (`sensor.<ppg>_last_reading`): зафиксированное значение в кубических метрах ($m^3$).
    - **Дата последнего показания** (`sensor.<ppg>_last_reading_date`): дата и время последней фиксации показания.
    - **Статус передачи показания** (`sensor.<ppg>_reading_submission_status`): текущее состояние возможности отправки (`allowed` — окно открыто, `already_submitted` — показание за период уже подано, `disallowed` — окно закрыто, `submitted` — успешно отправлено).
    - **Расход с прошлого показания** (`sensor.<ppg>_consumption_since_last_reading`): расход газа с момента последней зафиксированной в биллинге подачи ($m^3$), вычисляемый в реальном времени на основе привязанного локального датчика.
+   - **Баланс счета** (`sensor.<ppg>_account_balance`): финансовое сальдо взаиморасчетов в PLN (переплата/задолженность), с атрибутами статуса, суммой долга/переплаты, IBAN для оплаты и номером договора.
 4. Предоставить UI-кнопки `button.<ppg>_submit_reading` (подача текущих показаний) и `button.<ppg>_cancel_reading` (отмена показаний), а также службы `orlen_ebok.submit_reading` и `orlen_ebok.cancel_reading`.
 5. Обеспечить корректное брендирование и интеграцию в каталог HACS с официальной иконкой и логотипом приложения (по стандарту EMS).
 
@@ -57,11 +58,17 @@
 3. **Даты и периоды подачи показаний**:
    - `GET /crm/get-ppg-readings-dates?idPpg={idPpg}&api-version=3.0`
    - Возвращает допустимые даты расчётных окон `MeterReadingsDates`.
-4. **Валидация показания перед отправкой**:
+4. **Договоры и сальдо взаиморасчетов**:
+   - `GET /crm/get-all-agreements?api-version=3.0`
+   - Возвращает массив договоров `Agreements`: `PpNumber`, `AgreementNumber`, `Saldo` (в PLN), `Iban`, `Tariff`.
+5. **Сводный статус биллинга**:
+   - `GET /crm/get-billing-summary?api-version=3.0`
+   - Возвращает `Status: "Paid"`, `Value`.
+6. **Валидация показания перед отправкой**:
    - `POST /crm/validate-ppg-reading?api-version=3.0`
    - Тело: `{"IdPP": "{IdPPG}", "Value": {reading_int}, "ConsentMeterReset": false}`
    - Коды ответа: `0` (валидно), `1` / `1031` (ошибка показания), `1040` (требуется подтверждение сброса счетчика).
-5. **Подача показания счетчика**:
+7. **Подача показания счетчика**:
    - `POST /crm/add-ppg-reading-v2?api-version=3.0`
    - Тело:
      ```json
@@ -75,7 +82,7 @@
      }
      ```
    - Успешный ответ: `Code == 0`, объект `Reading` с подтвержденным значением и `CanBeCancelled: true`.
-6. **Отмена недавно поданного показания**:
+8. **Отмена недавно поданного показания**:
    - `POST /crm/cancel-reading?api-version=3.0`
    - Тело: `{"NumberOSD": "{MeterNumber}"}`
 
@@ -93,7 +100,7 @@ custom_components/orlen_ebok/
 ├── config_flow.py         # UI мастер настройки (логин, пароль, выбор source_sensor)
 ├── coordinator.py         # DataUpdateCoordinator (опрос API, кэширование)
 ├── api.py                 # Асинхронный клиент прямого API PGNiG eBOK на aiohttp
-├── sensor.py              # Реализация 4 сенсоров (показание, дата, статус, расход)
+├── sensor.py              # Реализация 5 сенсоров (показание, дата, статус, расход, баланс)
 ├── button.py              # Реализация кнопок подачи и отмены показаний
 ├── services.yaml          # Описание параметров служб submit_reading и cancel_reading
 ├── strings.json           # Описания и локализация
@@ -109,6 +116,7 @@ custom_components/orlen_ebok/
    - `sensor.<ppg>_last_reading_date`: дата и время последнего зафиксированного показания (device_class: `timestamp`).
    - `sensor.<ppg>_reading_submission_status`: статус передачи показаний (`allowed`, `already_submitted`, `disallowed`, `submitted`). В атрибутах: `meter_number`, `tariff`, `reading_dates`, `last_submission_result`.
    - `sensor.<ppg>_consumption_since_last_reading`: расход газа с момента последней подачи ($m^3$, device_class: `gas`, state_class: `measurement`). Отслеживает изменения привязанного локального сенсора в реальном времени.
+   - `sensor.<ppg>_account_balance`: баланс счета взаиморасчетов в PLN (`device_class: monetary`, unit: `PLN`). В атрибутах: `financial_status` (`settled` / `overpayment` / `debt`), `debt_amount` (сумма задолженности к оплате), `overpayment_amount` (сумма переплаты), `iban`, `agreement_number`, `billing_status`.
 2. **Кнопки**:
    - `button.<ppg>_submit_reading`: физическая кнопка на карточке устройства в UI Home Assistant для оперативной ручной подачи показаний из привязанного сенсора с защитой от случайного нажатия (debounce lock) и проверкой открытого окна подачи.
    - `button.<ppg>_cancel_reading`: физическая кнопка на карточке устройства в UI Home Assistant для безопасной отмены поданных показаний с защитой от случайного нажатия и спама (debounce lock).
@@ -141,7 +149,10 @@ custom_components/orlen_ebok/
    - Блокировка подачи, если окно закрыто (`status != 'allowed'`) или показание меньше предыдущего.
    - Защита от повторного входа через `asyncio.Lock()` (debounce) для обеих кнопок.
    - Оптимистичное обновление кэша координатора и генерация событий шины HA.
-4. **Асинхронность и неблокирующий I/O**:
+4. **Безопасность финансовых данных и защита PII**:
+   - Изолированный опрос финансовых эндпоинтов с `try/except` (graceful degradation при технических работах биллинга).
+   - Фильтрация персональных данных: исключение PESEL, телефонных номеров и адресов из атрибутов сущностей.
+5. **Асинхронность и неблокирующий I/O**:
    - Использование `aiohttp.ClientSession` через `async_get_clientsession(hass)`.
-5. **Безопасность учетных данных**:
+6. **Безопасность учетных данных**:
    - Хранение логина и пароля в зашифрованном хранилище `config_entries`.

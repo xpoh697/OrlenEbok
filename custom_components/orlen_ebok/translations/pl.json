@@ -44,6 +44,9 @@
       },
       "consumption_since_last_reading": {
         "name": "Zużycie od ostatniego odczytu"
+      },
+      "account_balance": {
+        "name": "Saldo konta"
       }
     },
     "button": {

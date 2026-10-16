@@ -276,3 +276,12 @@ class OrlenEbokApiClient:
             msg = data.get("Message") or f"Cancellation rejected with code {code}"
             raise OrlenEbokApiError(f"Сбой отмены показания (Код {code}): {msg}")
         return data
+
+    async def get_all_agreements(self) -> list[dict[str, Any]]:
+        """Получить список договоров и финансовый баланс (Saldo, Iban)."""
+        data = await self._request("GET", "/crm/get-all-agreements")
+        return data.get("Agreements", [])
+
+    async def get_billing_summary(self) -> dict[str, Any]:
+        """Получить статус расчетов (Billing summary)."""
+        return await self._request("GET", "/crm/get-billing-summary")

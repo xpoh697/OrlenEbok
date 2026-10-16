@@ -44,6 +44,9 @@
       },
       "consumption_since_last_reading": {
         "name": "Расход с прошлого показания"
+      },
+      "account_balance": {
+        "name": "Баланс счета"
       }
     },
     "button": {

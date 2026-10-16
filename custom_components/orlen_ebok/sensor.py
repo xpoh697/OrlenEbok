@@ -1,4 +1,4 @@
-"""Сенсоры показаний, расхода и статуса ORLEN eBOK."""
+"""Сенсоры показаний, расхода, статуса и баланса ORLEN eBOK."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -53,6 +53,7 @@ async def async_setup_entry(
                 OrlenLastReadingDateSensor(coordinator, entry, ppg_id),
                 OrlenSubmissionStatusSensor(coordinator, entry, ppg_id),
                 OrlenConsumptionSinceLastReadingSensor(coordinator, entry, ppg_id),
+                OrlenAccountBalanceSensor(coordinator, entry, ppg_id),
             ]
         )
 
@@ -286,4 +287,62 @@ class OrlenConsumptionSinceLastReadingSensor(OrlenBaseEntity, SensorEntity):
             "current_source_value": current_val,
             "last_reading_value": last_reading.get("Value"),
             "last_reading_date": last_reading.get("ReadingDateUtc") or last_reading.get("ReadingDateLocal"),
+        }
+
+
+class OrlenAccountBalanceSensor(OrlenBaseEntity, SensorEntity):
+    """Сенсор: Баланс лицевого счета (задолженность / переплата)."""
+
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "PLN"
+    _attr_icon = "mdi:scale-balance"
+    _attr_translation_key = "account_balance"
+
+    def __init__(
+        self, coordinator: OrlenEbokCoordinator, entry: ConfigEntry, ppg_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, ppg_id, "account_balance")
+        self._attr_name = "Баланс счета"
+
+    @property
+    def native_value(self) -> float | None:
+        """Текущее сальдо в PLN. Положительное - переплата, отрицательное - долг."""
+        device_data = self.coordinator.data.get(self.ppg_id, {})
+        acc_balance = device_data.get("account_balance", {})
+        return acc_balance.get("saldo")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Финансовые атрибуты: статус взаиморасчетов, долг, переплата, IBAN."""
+        device_data = self.coordinator.data.get(self.ppg_id, {})
+        acc_balance = device_data.get("account_balance", {})
+        saldo = acc_balance.get("saldo", 0.0)
+
+        try:
+            saldo_val = float(saldo) if saldo is not None else 0.0
+        except (ValueError, TypeError):
+            saldo_val = 0.0
+
+        if saldo_val > 0.0:
+            fin_status = "overpayment"
+            debt_amt = 0.0
+            overpay_amt = round(saldo_val, 2)
+        elif saldo_val < 0.0:
+            fin_status = "debt"
+            debt_amt = round(abs(saldo_val), 2)
+            overpay_amt = 0.0
+        else:
+            fin_status = "settled"
+            debt_amt = 0.0
+            overpay_amt = 0.0
+
+        return {
+            ATTR_PPG_ID: self.ppg_id,
+            "financial_status": fin_status,
+            "debt_amount": debt_amt,
+            "overpayment_amount": overpay_amt,
+            "currency": "PLN",
+            "iban": acc_balance.get("iban"),
+            "agreement_number": acc_balance.get("agreement_number"),
+            "billing_status": acc_balance.get("billing_status"),
         }

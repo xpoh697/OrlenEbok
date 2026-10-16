@@ -36,10 +36,28 @@ class OrlenEbokCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.optimistic_submissions: dict[str, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Загрузка свежих данных по всем счетчикам из API Orlen."""
+        """Загрузка свежих данных по всем счетчикам и балансу из API Orlen."""
         try:
             ppg_list = await self.api.get_ppg_list()
             devices: dict[str, dict[str, Any]] = {}
+
+            # Изолированный опрос финансовых данных (graceful fallback)
+            agreements_map: dict[str, dict[str, Any]] = {}
+            billing_status: str | None = None
+            try:
+                agreements = await self.api.get_all_agreements()
+                for agr in agreements:
+                    pp_num = str(agr.get("PpNumber") or "")
+                    if pp_num:
+                        agreements_map[pp_num] = agr
+            except OrlenEbokApiError as err:
+                _LOGGER.warning("Не удалось загрузить договоры и финансовый баланс: %s", err)
+
+            try:
+                summary = await self.api.get_billing_summary()
+                billing_status = summary.get("Status")
+            except OrlenEbokApiError as err:
+                _LOGGER.debug("Не удалось получить сводку биллинга: %s", err)
 
             for ppg in ppg_list:
                 ppg_id = str(ppg.get("IdPPG"))
@@ -106,6 +124,18 @@ class OrlenEbokCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else:
                     status = STATUS_DISALLOWED
 
+                # Сопоставление договора и баланса
+                agreement = (
+                    agreements_map.get(meter_number)
+                    or agreements_map.get(ppg_id)
+                    or (list(agreements_map.values())[0] if len(agreements_map) == 1 else {})
+                )
+                saldo = agreement.get("Saldo")
+                try:
+                    saldo_float = float(saldo) if saldo is not None else 0.0
+                except (ValueError, TypeError):
+                    saldo_float = 0.0
+
                 devices[ppg_id] = {
                     "ppg": ppg,
                     "meter_number": meter_number,
@@ -115,6 +145,12 @@ class OrlenEbokCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "reading_dates": reading_dates,
                     "status": status,
                     "last_submission": optimistic,
+                    "account_balance": {
+                        "saldo": saldo_float,
+                        "iban": agreement.get("Iban"),
+                        "agreement_number": agreement.get("AgreementNumber"),
+                        "billing_status": billing_status,
+                    },
                 }
 
             return devices
