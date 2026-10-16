@@ -49,14 +49,33 @@ class OrlenEbokCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 readings = []
                 try:
                     readings = await self.api.get_all_readings_for_meter(
-                        ppg_id, page_size=5
+                        ppg_id, page_size=10
                     )
                 except OrlenEbokApiError as err:
                     _LOGGER.warning(
                         "Failed to fetch reading history for PPG %s: %s", ppg_id, err
                     )
 
-                last_reading = readings[0] if readings else {}
+                # Фильтрация отмененных показаний (Status: ANUL_KLIENT, ANUL_OPERATOR и т.д.)
+                active_readings = [
+                    r
+                    for r in readings
+                    if not str(r.get("Status", "")).upper().startswith("ANUL")
+                    and not r.get("IsEmptyValue", False)
+                ]
+
+                last_reading: dict[str, Any] = active_readings[0] if active_readings else {}
+
+                # Если в основном объекте PPG есть подтвержденное биллингом ReadingValue
+                ppg_reading_val = ppg.get("ReadingValue")
+                if ppg_reading_val is not None:
+                    if not last_reading or not active_readings:
+                        last_reading = {
+                            "Value": ppg_reading_val,
+                            "ReadingDateUtc": ppg.get("ReadingDateUtc")
+                            or ppg.get("ReadingDateAddedUtc"),
+                            "Status": "ROZL",
+                        }
 
                 # Загрузка допустимых дат окна подачи
                 reading_dates = []
@@ -91,7 +110,8 @@ class OrlenEbokCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "ppg": ppg,
                     "meter_number": meter_number,
                     "last_reading": last_reading,
-                    "readings_history": readings,
+                    "readings_history": active_readings,
+                    "raw_readings_history": readings,
                     "reading_dates": reading_dates,
                     "status": status,
                     "last_submission": optimistic,
