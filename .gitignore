@@ -1,0 +1,10 @@
+*.apk
+*.xapk
+*.so
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store

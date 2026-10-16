@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ORLEN eBOK (PGNiG) - Logowanie",
+        "description": "Wprowadź login (email) i hasło do portalu ORLEN mBOK / PGNiG eBOK.",
+        "data": {
+          "username": "Login / Adres e-mail",
+          "password": "Hasło"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie udało się połączyć z serwerem ORLEN eBOK.",
+      "invalid_auth": "Niepoprawny login lub hasło.",
+      "unknown": "Wystąpił nieoczekiwany błąd logowania."
+    },
+    "abort": {
+      "already_configured": "To konto ORLEN eBOK zostało już skonfigurowane."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ustawienia ORLEN eBOK",
+        "description": "Wskaż lokalną encję licznika gazu w Home Assistant, z której usługa submit_reading będzie pobierać odczyty.",
+        "data": {
+          "source_sensor": "Sensor licznika gazu (np. sensor.gas_meter)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_reading": {
+        "name": "Ostatni odczyt"
+      },
+      "last_reading_date": {
+        "name": "Data ostatniego odczytu"
+      },
+      "reading_submission_status": {
+        "name": "Status podawania odczytu"
+      }
+    }
+  }
+}

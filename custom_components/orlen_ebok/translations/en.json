@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ORLEN eBOK (PGNiG) - Authentication",
+        "description": "Enter your login (email) and password for ORLEN mBOK / PGNiG eBOK portal.",
+        "data": {
+          "username": "Login / Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to ORLEN eBOK servers.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "Unexpected authentication error."
+    },
+    "abort": {
+      "already_configured": "This ORLEN eBOK account is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ORLEN eBOK Options",
+        "description": "Specify a local Home Assistant gas meter sensor from which submit_reading will pull readings when value is omitted.",
+        "data": {
+          "source_sensor": "Gas meter sensor (e.g. sensor.gas_meter)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_reading": {
+        "name": "Last meter reading"
+      },
+      "last_reading_date": {
+        "name": "Last reading date"
+      },
+      "reading_submission_status": {
+        "name": "Reading submission status"
+      }
+    }
+  }
+}

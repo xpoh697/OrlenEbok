@@ -1,0 +1,12 @@
+{
+  "domain": "orlen_ebok",
+  "name": "ORLEN eBOK (PGNiG)",
+  "codeowners": ["@xpoh697"],
+  "config_flow": true,
+  "documentation": "https://github.com/xpoh697/OrlenEbok",
+  "issue_tracker": "https://github.com/xpoh697/OrlenEbok/issues",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "1.0.0"
+}

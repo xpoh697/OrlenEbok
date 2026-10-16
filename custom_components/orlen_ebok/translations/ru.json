@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ORLEN eBOK (PGNiG) - Авторизация",
+        "description": "Введите логин (email) и пароль от личного кабинета ORLEN mBOK / PGNiG eBOK.",
+        "data": {
+          "username": "Логин / Email",
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Не удалось подключиться к серверам ORLEN eBOK.",
+      "invalid_auth": "Неверный логин или пароль.",
+      "unknown": "Неизвестная ошибка при авторизации."
+    },
+    "abort": {
+      "already_configured": "Этот аккаунт ORLEN eBOK уже настроен."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Параметры ORLEN eBOK",
+        "description": "Укажите локальный сенсор газа в Home Assistant, из которого служба submit_reading будет брать показания, если они не указаны явно.",
+        "data": {
+          "source_sensor": "Сенсор показаний газа (например, sensor.gas_meter)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_reading": {
+        "name": "Последнее показание"
+      },
+      "last_reading_date": {
+        "name": "Дата последнего показания"
+      },
+      "reading_submission_status": {
+        "name": "Статус передачи показаний"
+      }
+    }
+  }
+}

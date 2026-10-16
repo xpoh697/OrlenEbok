@@ -1,0 +1,44 @@
+submit_reading:
+  name: Подать показания счетчика газа
+  description: Отправляет показания счетчика газа в личный кабинет ORLEN mBOK / PGNiG eBOK (вызывается вручную или из автоматизаций).
+  fields:
+    value:
+      name: Показание счетчика
+      description: Числовое значение показания в кубических метрах (целое число или дробь, которая будет округлена вниз). Если не указано, считывается из привязанного source_sensor.
+      required: false
+      example: 1642
+      selector:
+        text:
+    ppg_id:
+      name: Идентификатор точки учета (PPG)
+      description: Номер точки учета PPG. Обязателен только если в аккаунте более одного счетчика.
+      required: false
+      example: "0987654321"
+      selector:
+        text:
+    date:
+      name: Дата показания
+      description: Дата фиксации показания в формате YYYY-MM-DD. По умолчанию — текущая дата.
+      required: false
+      example: "2026-10-16"
+      selector:
+        date:
+    consent_meter_reset:
+      name: Согласие на сброс / замену счетчика
+      description: Установите флаг, если счетчик был заменен и новое показание меньше предыдущего.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+cancel_reading:
+  name: Отменить последнее показание
+  description: Отменяет ошибочно поданное показание счетчика газа в биллинге Orlen.
+  fields:
+    ppg_id:
+      name: Идентификатор точки учета (PPG)
+      description: Номер точки учета PPG.
+      required: false
+      example: "0987654321"
+      selector:
+        text:
