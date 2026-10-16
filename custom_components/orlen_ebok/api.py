@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 import aiohttp
+from yarl import URL
 
 from .const import BASE_URL
 
@@ -33,10 +34,10 @@ class OrlenEbokApiClient:
     ) -> None:
         """Инициализация клиента."""
         self._session = session
-        self._username = username
-        self._password = password
+        self._username = username.strip()
+        self._password = password.strip()
         self._cached_token: str | None = None
-        self._device_id: str = hashlib.sha256(username.encode("utf-8")).hexdigest()[:32]
+        self._device_id: str = hashlib.sha256(self._username.encode("utf-8")).hexdigest()[:32]
         self._lock = asyncio.Lock()
 
     @property
@@ -47,16 +48,44 @@ class OrlenEbokApiClient:
     def _headers(self, token: str | None = None) -> dict[str, str]:
         """Формирование заголовков запроса."""
         headers = {
-            "Accept": "application/json",
+            "Accept": "application/json, text/plain, */*",
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Linux; Android 14; Mobile) ORLEN_mBOK/4.0.10",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            "Origin": BASE_URL,
+            "Referer": f"{BASE_URL}/",
+            "Cookie": f"pgnig-ebok-device-token={self._device_id}",
         }
         if token:
             headers["AuthToken"] = token
         return headers
 
+    async def _init_session(self) -> None:
+        """Инициализация сессионных cookie и сетевого экрана (WAF)."""
+        try:
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/128.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }
+            async with self._session.get(f"{BASE_URL}/", headers=headers, timeout=15) as resp:
+                await resp.read()
+            self._session.cookie_jar.update_cookies(
+                {"pgnig-ebok-device-token": self._device_id},
+                URL(BASE_URL),
+            )
+        except Exception as err:
+            _LOGGER.debug("Session pre-warm non-critical error: %s", err)
+
     async def login_api(self) -> str:
         """Прямой вход в систему через /auth/login."""
+        await self._init_session()
         url = f"{BASE_URL}/auth/login?api-version=3.0"
         payload = {
             "identificator": self._username,
@@ -64,30 +93,54 @@ class OrlenEbokApiClient:
             "rememberLogin": False,
             "DeviceId": self._device_id,
             "DeviceName": "Home Assistant",
-            "DeviceType": "Android",
+            "DeviceType": "Web",
         }
         try:
             async with self._session.post(
                 url, json=payload, headers=self._headers(), timeout=30
             ) as resp:
+                if resp.status == 401:
+                    raise OrlenEbokAuthError("Неверный логин или пароль PGNiG eBOK")
+
                 if resp.status != 200:
                     text = await resp.text()
-                    raise OrlenEbokAuthError(
-                        f"Login failed (HTTP {resp.status}): {text[:200]}"
+                    try:
+                        err_json = await resp.json()
+                        err_msg = (
+                            err_json.get("Message")
+                            or str(err_json.get("Errors", ""))
+                            or text[:200]
+                        )
+                    except Exception:
+                        err_msg = text[:200]
+
+                    if resp.status == 400 and any(
+                        keyword in text.lower()
+                        for keyword in ("błędn", "hasł", "login", "password", "nieprawidłow")
+                    ):
+                        raise OrlenEbokAuthError(f"Неверный логин или пароль PGNiG eBOK: {err_msg}")
+
+                    raise OrlenEbokApiError(
+                        f"Ошибка входа eBOK (HTTP {resp.status}): {err_msg}"
                     )
+
                 data = await resp.json()
                 token = data.get("Token")
                 if not token:
                     raise OrlenEbokAuthError(
-                        f"Auth response missing 'Token': {data}"
+                        f"Ответ сервера не содержит 'Token': {data}"
                     )
                 self._cached_token = token
-                _LOGGER.debug("Orlen eBOK authentication successful")
+                _LOGGER.debug("Авторизация Orlen eBOK успешно выполнена")
                 return token
+        except OrlenEbokAuthError:
+            raise
+        except OrlenEbokApiError:
+            raise
         except asyncio.TimeoutError as err:
-            raise OrlenEbokApiError("Timeout during authentication") from err
+            raise OrlenEbokApiError("Таймаут соединения при авторизации") from err
         except aiohttp.ClientError as err:
-            raise OrlenEbokApiError(f"Network error during authentication: {err}") from err
+            raise OrlenEbokApiError(f"Сетевая ошибка при авторизации: {err}") from err
 
     async def get_token(self) -> str:
         """Получить действующий токен авторизации."""
@@ -123,21 +176,21 @@ class OrlenEbokApiClient:
                     timeout=30,
                 ) as resp:
                     if resp.status == 401 and attempt == 0:
-                        _LOGGER.debug("Token expired (401), re-authenticating...")
+                        _LOGGER.debug("Токен устарел (401), обновление сессии...")
                         self._cached_token = None
                         continue
                     if resp.status != 200:
                         text = await resp.text()
                         raise OrlenEbokApiError(
-                            f"API call {path} failed (HTTP {resp.status}): {text[:200]}"
+                            f"Вызов API {path} вернул HTTP {resp.status}: {text[:200]}"
                         )
                     return await resp.json()
             except asyncio.TimeoutError as err:
-                raise OrlenEbokApiError(f"Timeout calling {path}") from err
+                raise OrlenEbokApiError(f"Таймаут при вызове {path}") from err
             except aiohttp.ClientError as err:
-                raise OrlenEbokApiError(f"Network error calling {path}: {err}") from err
+                raise OrlenEbokApiError(f"Сетевая ошибка при вызове {path}: {err}") from err
 
-        raise OrlenEbokAuthError("Authentication expired and re-login failed")
+        raise OrlenEbokAuthError("Сессия истекла, повторный вход не удался")
 
     async def get_ppg_list(self) -> list[dict[str, Any]]:
         """Получить список подключений/счетчиков (PPG)."""
@@ -179,7 +232,7 @@ class OrlenEbokApiClient:
         code = data.get("Code", -1)
         if code != 0:
             msg = data.get("Message") or f"Validation rejected with code {code}"
-            raise OrlenEbokApiError(f"Reading validation failed (Code {code}): {msg}")
+            raise OrlenEbokApiError(f"Ошибка валидации показания (Код {code}): {msg}")
         return data
 
     async def submit_reading(
@@ -211,7 +264,7 @@ class OrlenEbokApiClient:
         code = data.get("Code", -1)
         if code != 0:
             msg = data.get("Message") or f"Submission rejected with code {code}"
-            raise OrlenEbokApiError(f"Submission failed (Code {code}): {msg}")
+            raise OrlenEbokApiError(f"Сбой отправки показания (Код {code}): {msg}")
         return data
 
     async def cancel_reading(self, meter_number: str) -> dict[str, Any]:
@@ -221,5 +274,5 @@ class OrlenEbokApiClient:
         code = data.get("Code", -1)
         if code != 0:
             msg = data.get("Message") or f"Cancellation rejected with code {code}"
-            raise OrlenEbokApiError(f"Cancel reading failed (Code {code}): {msg}")
+            raise OrlenEbokApiError(f"Сбой отмены показания (Код {code}): {msg}")
         return data
