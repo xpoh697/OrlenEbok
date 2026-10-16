@@ -47,6 +47,9 @@
       }
     },
     "button": {
+      "submit_reading": {
+        "name": "Submit current reading"
+      },
       "cancel_reading": {
         "name": "Cancel last reading"
       }
